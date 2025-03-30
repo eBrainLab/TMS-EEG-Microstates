@@ -45,7 +45,7 @@ if any(strcmp(features2extract, 'ROF'))
             clr_occ = zeros(size(all_occ));
 
             % Apply centered log-ratio (CLR) transformation for each time point
-            delta = 0.001; % Small constant to avoid log(0)
+            delta = 0.5; % Small constant to avoid log(0)
             for jj = 1:size(all_occ, 1)
                 clr_occ(jj, :) = centered_log_ratio(all_occ(jj, :), delta);
             end

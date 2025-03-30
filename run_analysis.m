@@ -4,7 +4,7 @@ clear; clc; close all;
 %% Constants and Directories
 % Ensure that you are in the correct directory before running this script.
 % Define the parent directory (update as needed)
-parent_dir = "C:\Users\Amin\Documents\Pre_Post_Microstates_LPFC_LMC\Analysis_Scripts";
+parent_dir = "C:\Users\Amin\Documents\GitHub\TMS-EEG-Microstates";
 cd(parent_dir);
 
 % Time arrays and labels
