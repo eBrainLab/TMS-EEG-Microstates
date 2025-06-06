@@ -13,10 +13,41 @@ function results = test_rtf(data_struct, stim_site, apply_correction)
 %   - results: Struct containing hypothesis test results, p-values, t-statistics,
 %              and Cohen's d for early and late transitions.
 
-    % Extract post-transition matrices for each subject
+    % Validate input data before proceeding
+    valid_subjects = [];
     for kk = 1:length(data_struct)
-        post_early_sample(:, :, kk) = data_struct(kk).(stim_site).transition_averages_bc.post_early;
-        post_late_sample(:, :, kk) = data_struct(kk).(stim_site).transition_averages_bc.post_late;
+        % Check if the subject has the required fields
+        if isfield(data_struct(kk), stim_site) && ...
+           isfield(data_struct(kk).(stim_site), 'transition_averages_bc') && ...
+           isfield(data_struct(kk).(stim_site).transition_averages_bc, 'post_early') && ...
+           isfield(data_struct(kk).(stim_site).transition_averages_bc, 'post_late')
+            valid_subjects = [valid_subjects, kk];
+        end
+    end
+    
+    % Check if we found any valid subjects
+    if isempty(valid_subjects)
+        error(['No subjects found with transition_averages_bc data for stim_site "', stim_site, '".']);
+    end
+    
+    % Report number of valid subjects found
+    fprintf('Found %d valid subjects out of %d total for stim_site "%s".\n', ...
+        length(valid_subjects), length(data_struct), stim_site);
+    
+    % Get dimensions from the first valid subject to preallocate arrays
+    first_valid = valid_subjects(1);
+    matrix_size = size(data_struct(first_valid).(stim_site).transition_averages_bc.post_early);
+    num_valid_subjects = length(valid_subjects);
+    
+    % Preallocate arrays for transition matrices
+    post_early_sample = zeros(matrix_size(1), matrix_size(2), num_valid_subjects);
+    post_late_sample = zeros(matrix_size(1), matrix_size(2), num_valid_subjects);
+
+    % Extract post-transition matrices for valid subjects only
+    for idx = 1:num_valid_subjects
+        kk = valid_subjects(idx);
+        post_early_sample(:, :, idx) = data_struct(kk).(stim_site).transition_averages_bc.post_early;
+        post_late_sample(:, :, idx) = data_struct(kk).(stim_site).transition_averages_bc.post_late;
     end
 
     % Perform t-test for early transitions
@@ -36,19 +67,23 @@ function results = test_rtf(data_struct, stim_site, apply_correction)
     end
 
     % Apply p-value correction if specified
-    if apply_correction
+    if ~isempty(apply_correction)
         % Flatten p-values, excluding NaNs (diagonal elements)
         p_early_flat = p_early(~isnan(p_early));
         p_late_flat = p_late(~isnan(p_late));
 
-        if strcmp(apply_correction, "fdr")
+        if strcmpi(apply_correction, "fdr")
             % Apply False Discovery Rate (FDR) correction
             p_early_corrected = mafdr(p_early_flat, 'BHFDR', true);
             p_late_corrected = mafdr(p_late_flat, 'BHFDR', true);
-        elseif strcmp(apply_correction, "bonferroni")
+        elseif strcmpi(apply_correction, "bonferroni")
             % Apply Bonferroni correction (scaled by the number of tests)
             p_early_corrected = min(p_early_flat * numel(p_early_flat), 1);
             p_late_corrected = min(p_late_flat * numel(p_late_flat), 1);
+        else
+            warning('Unknown correction method "%s". No correction applied.', apply_correction);
+            p_early_corrected = p_early_flat;
+            p_late_corrected = p_late_flat;
         end
 
         % Reshape the corrected p-values back to their original size, skipping diagonal elements
@@ -74,6 +109,8 @@ function results = test_rtf(data_struct, stim_site, apply_correction)
     results.p_late = p_late;
     results.t_late = t_late;
     results.cohen_d_late = cohen_d_late;
+    results.valid_subjects = valid_subjects;
+    results.num_valid_subjects = num_valid_subjects;
 end
 
 function cohen_d_matrix = calculate_cohens_d(combined_data)
