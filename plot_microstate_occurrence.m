@@ -373,7 +373,7 @@ xticks(time_range_start:50:time_range_end);
 
 % Font settings
 ax = gca;
-ax.FontSize = 30;
+ax.FontSize = 20;
 ax.FontName = 'Helvetica';
 ax.XTickLabelRotation = 0;
 
@@ -393,9 +393,9 @@ for k = 1:length(yGridLines)
 end
 
 % Labels and title
-xlabel('Latency (ms)', 'FontSize', 35, 'FontName', 'Helvetica');
-ylabel('Relative Occurrence Frequency', 'FontSize', 35, 'FontName', 'Helvetica');
-title(figure_title, 'FontSize', 40, 'FontName', 'Helvetica');
+xlabel('Latency (ms)', 'FontSize', 24, 'FontName', 'Helvetica');
+ylabel('Relative Occurrence Frequency', 'FontSize', 24, 'FontName', 'Helvetica');
+title(figure_title, 'FontSize', 30, 'FontName', 'Helvetica');
 
 % Reference lines
 yline(0, '--k');
@@ -403,7 +403,7 @@ xline(0, '--r', 'TMS', 'LineWidth', 5, ...
     'LabelHorizontalAlignment', 'center', ...
     'LabelVerticalAlignment', 'top', ...
     'LabelOrientation','horizontal', ...
-    'FontSize', 35, 'FontName', 'Helvetica');
+    'FontSize', 28, 'FontName', 'Helvetica');
 
 % Legend
 lgd_microstate = legend(microstates, 'FontSize', 28, 'FontName', 'Helvetica');
