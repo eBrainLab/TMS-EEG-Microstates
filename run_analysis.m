@@ -102,7 +102,7 @@ if main_analysis
                 current_state = microstates(ss);
                 
                 % Prepare data matrix
-                data_microstate = zeros(num_subjects_site, num_timepoints);
+                data_microstate = zeros(num_subjects_site, length(test_indices));
                 for i = 1:num_subjects_site
                     if isfield(data_struct(i), current_site_char) && ...
                        ~isempty(data_struct(i).(current_site_char))
@@ -178,113 +178,123 @@ end
 if compare_sites
     fprintf('\n=== Starting between-site comparison ===\n');
     
-    % Get site names
-    site1_char = char(stim_sites(1));
-    site2_char = char(stim_sites(2));
+    % Define all site pairs to compare
+    site_pairs = [1 2; 1 3; 2 3];  % lpfc vs rpfc, lpfc vs lmc, rpfc vs lmc
     
-    % Find subjects with data for both sites
-    valid_subjects_for_comparison = false(num_subjects, 1);
-    
-    for i = 1:num_subjects
-        if isfield(data_struct(i), site1_char) && ...
-           ~isempty(data_struct(i).(site1_char)) && ...
-           isfield(data_struct(i), site2_char) && ...
-           ~isempty(data_struct(i).(site2_char))
-            valid_subjects_for_comparison(i) = true;
-        end
-    end
-    
-    % Filter data
-    data_struct_comparison = data_struct(valid_subjects_for_comparison);
-    num_subjects_comparison = length(data_struct_comparison);
-    
-    fprintf('Found %d subjects with data for both %s and %s.\n', ...
-            num_subjects_comparison, upper(site1_char), upper(site2_char));
-    
-    %% Analyze ROF comparison
-    if any(strcmp(features2extract, 'ROF'))
-        fprintf('Computing ROF comparison statistics...\n');
+    % Process each site pair
+    for pair_idx = 1:size(site_pairs, 1)
+        site1_idx = site_pairs(pair_idx, 1);
+        site2_idx = site_pairs(pair_idx, 2);
+        site1_char = char(stim_sites(site1_idx));
+        site2_char = char(stim_sites(site2_idx));
         
-        for ss = 1:length(microstates)
-            current_state = microstates(ss);
-            
-            % Prepare data matrices
-            data_microstate = zeros(num_subjects_comparison, num_timepoints);
-            data_microstate_secondary = zeros(num_subjects_comparison, num_timepoints);
-            
-            for i = 1:num_subjects_comparison
-                data_microstate(i, :) = data_struct_comparison(i).(stim_sites(1))...
-                    .occurrences_clr_bc.(current_state)(test_indices)';
-                data_microstate_secondary(i, :) = data_struct_comparison(i).(stim_sites(2))...
-                    .occurrences_clr_bc.(current_state)(test_indices)';
+        fprintf('\n--- Comparing %s vs %s ---\n', upper(site1_char), upper(site2_char));
+        
+        % Find subjects with data for both sites
+        num_subjects_total = length(data_struct);
+        valid_subjects_for_comparison = false(num_subjects_total, 1);
+        
+        for i = 1:num_subjects_total
+            if isfield(data_struct(i), site1_char) && ...
+               ~isempty(data_struct(i).(site1_char)) && ...
+               isfield(data_struct(i), site2_char) && ...
+               ~isempty(data_struct(i).(site2_char))
+                valid_subjects_for_comparison(i) = true;
             end
-            
-            % Perform paired TFCE analysis
-            [TFCE_Obs, TFCE_Perm, P_Values, Info, ROF_Results] = ...
-                test_rof_within_two_conditions(data_microstate, ...
-                data_microstate_secondary, nshuffles);
-            
-            % Save results
-            rof_file = fullfile(results_dir, ...
-                sprintf('ROF_Results_%s_%s_%s_%s_%s.mat', ...
-                selected_dataset, selected_visit, upper(stim_sites(1)), ...
-                upper(stim_sites(2)), current_state));
-            save(rof_file, 'ROF_Results');
         end
         
-        % Generate comparison plot
-        if save_figure
-            figure_title = sprintf('%s %s %s vs. %s', selected_dataset, ...
-                selected_visit, upper(stim_sites(1)), upper(stim_sites(2)));
-            
-            % Compile p-values matrix
-            p_values_matrix = NaN(length(microstates), length(common_time_array));
+        % Filter data
+        data_struct_comparison = data_struct(valid_subjects_for_comparison);
+        num_subjects_comparison = length(data_struct_comparison);
+        
+        fprintf('Found %d subjects with data for both %s and %s.\n', ...
+                num_subjects_comparison, upper(site1_char), upper(site2_char));
+        
+        %% Analyze ROF comparison
+        if any(strcmp(features2extract, 'ROF'))
+            fprintf('Computing ROF comparison statistics...\n');
             
             for ss = 1:length(microstates)
                 current_state = microstates(ss);
                 
-                % Load saved results
-                struct_name = fullfile(results_dir, ...
-                    sprintf('ROF_Results_%s_%s_%s_%s_%s.mat', ...
-                    selected_dataset, selected_visit, upper(stim_sites(1)), ...
-                    upper(stim_sites(2)), current_state));
-                loaded_data = load(struct_name);
-                p_values = loaded_data.ROF_Results.P_Values;
+                % Prepare data matrices
+                data_microstate = zeros(num_subjects_comparison, length(test_indices));
+                data_microstate_secondary = zeros(num_subjects_comparison, length(test_indices));
                 
-                % Create full p-value vector
-                full_p_values = NaN(1, length(common_time_array));
-                full_p_values(test_indices) = p_values;
-                p_values_matrix(ss, :) = full_p_values;
+                for i = 1:num_subjects_comparison
+                    data_microstate(i, :) = data_struct_comparison(i).(site1_char)...
+                        .occurrences_clr_bc.(current_state)(test_indices)';
+                    data_microstate_secondary(i, :) = data_struct_comparison(i).(site2_char)...
+                        .occurrences_clr_bc.(current_state)(test_indices)';
+                end
+                
+                % Perform paired TFCE analysis
+                [TFCE_Obs, TFCE_Perm, P_Values, Info, ROF_Results] = ...
+                    test_rof_within_two_conditions(data_microstate, ...
+                    data_microstate_secondary, nshuffles);
+                
+                % Save results
+                rof_file = fullfile(results_dir, ...
+                    sprintf('ROF_Results_%s_%s_%s_%s_%s.mat', ...
+                    selected_dataset, selected_visit, upper(site1_char), ...
+                    upper(site2_char), current_state));
+                save(rof_file, 'ROF_Results');
             end
             
-            % Create plot
-            plot_microstate_occurrence(data_struct_comparison, cellstr(stim_sites), ...
-                p_values_matrix, microstates, common_time_array, ...
-                figure_time_range, figure_title, save_figure);
+            % Generate comparison plot
+            if save_figure
+                figure_title = sprintf('%s %s %s vs. %s', selected_dataset, ...
+                    selected_visit, upper(site1_char), upper(site2_char));
+                
+                % Compile p-values matrix
+                p_values_matrix = NaN(length(microstates), length(common_time_array));
+                
+                for ss = 1:length(microstates)
+                    current_state = microstates(ss);
+                    
+                    % Load saved results
+                    struct_name = fullfile(results_dir, ...
+                        sprintf('ROF_Results_%s_%s_%s_%s_%s.mat', ...
+                        selected_dataset, selected_visit, upper(site1_char), ...
+                        upper(site2_char), current_state));
+                    loaded_data = load(struct_name);
+                    p_values = loaded_data.ROF_Results.P_Values;
+                    
+                    % Create full p-value vector
+                    full_p_values = NaN(1, length(common_time_array));
+                    full_p_values(test_indices) = p_values;
+                    p_values_matrix(ss, :) = full_p_values;
+                end
+                
+                % Create plot
+                plot_microstate_occurrence(data_struct_comparison, {site1_char, site2_char}, ...
+                    p_values_matrix, microstates, common_time_array, ...
+                    figure_time_range, figure_title, save_figure);
+            end
         end
-    end
-    
-    %% Analyze RTF comparison
-    if any(strcmp(features2extract, 'RTF'))
-        fprintf('Computing RTF comparison statistics...\n');
         
-        % Perform paired transition analysis
-        RTF_Results = test_rtf_within_two_conditions(data_struct_comparison, ...
-            stim_sites, apply_correction);
-        
-        % Save results
-        rtf_file = fullfile(results_dir, sprintf('RTF_Results_%s_%s_%s_%s.mat', ...
-            selected_dataset, selected_visit, upper(stim_sites(1)), ...
-            upper(stim_sites(2))));
-        save(rtf_file, 'RTF_Results');
-        
-        % Generate heatmap
-        plot_title = sprintf('Microstates Transitions T-scores %s %s %s vs. %s', ...
-            selected_dataset, selected_visit, upper(stim_sites(1)), ...
-            upper(stim_sites(2)));
-        plot_transitions_t_scores_heatmap(microstates, RTF_Results, ...
-            time_window_ranges.post_tms, plot_title, save_figure);
-    end
+        %% Analyze RTF comparison
+        if any(strcmp(features2extract, 'RTF'))
+            fprintf('Computing RTF comparison statistics...\n');
+            
+            % Perform paired transition analysis
+            RTF_Results = test_rtf_within_two_conditions(data_struct_comparison, ...
+                [stim_sites(site1_idx), stim_sites(site2_idx)], apply_correction);
+            
+            % Save results
+            rtf_file = fullfile(results_dir, sprintf('RTF_Results_%s_%s_%s_%s.mat', ...
+                selected_dataset, selected_visit, upper(site1_char), ...
+                upper(site2_char)));
+            save(rtf_file, 'RTF_Results');
+            
+            % Generate heatmap
+            plot_title = sprintf('Microstates Transitions T-scores %s %s %s vs. %s', ...
+                selected_dataset, selected_visit, upper(site1_char), ...
+                upper(site2_char));
+            plot_transitions_t_scores_heatmap(microstates, RTF_Results, ...
+                time_window_ranges.post_tms, plot_title, save_figure);
+        end
+    end  % End of site pairs loop
 end
 
 %% Complete
