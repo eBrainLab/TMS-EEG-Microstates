@@ -21,10 +21,6 @@
 %% Clear workspace and initialize
 clear; clc; close all;
 
-%% Set directories
-% Update this path to your data directory
-parent_dir = "C:\Users\amin_\Documents\GitHub\TMS-EEG-Microstates";
-cd(parent_dir);
 
 %% Define analysis parameters
 % Time vectors and microstate labels
@@ -65,7 +61,7 @@ compare_sites = true;                           % Between-site comparison
 
 %% Load data
 fprintf('Loading data...\n');
-data_file_selected = fullfile(parent_dir, 'data', ...
+data_file_selected = fullfile('data', ...
     sprintf('%s_%s.mat', selected_dataset, selected_visit));
 load(data_file_selected);
 
@@ -75,7 +71,7 @@ data_struct = extract_microstates_frequencies(data_struct, microstates, ...
     baseline_indices, time_window_ranges, features2extract);
 
 %% Create results directory
-results_dir = fullfile(parent_dir, 'results');
+results_dir = fullfile('results');
 if ~exist(results_dir, 'dir')
     mkdir(results_dir);
 end
