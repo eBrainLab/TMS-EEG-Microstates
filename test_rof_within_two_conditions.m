@@ -1,5 +1,5 @@
 function [TFCE_Obs, TFCE_Perm, P_Values, Info, Results] = test_rof_within_two_conditions(...
-    data_matrix1, data_matrix2, nPerm, H, E)
+    data_matrix1, data_matrix2, nPerm, H, E, progressFcn)
 % -------------------------------------------------------------------------
 % TEST_ROF_WITHIN_TWO_CONDITIONS - TFCE for paired within-subject design
 %
@@ -9,6 +9,7 @@ function [TFCE_Obs, TFCE_Perm, P_Values, Info, Results] = test_rof_within_two_co
 % Syntax:
 %   [TFCE_Obs, TFCE_Perm, P_Values, Info, Results] = ...
 %       test_rof_within_two_conditions(data_matrix1, data_matrix2, nPerm, H, E)
+%   [... ] = test_rof_within_two_conditions(..., progressFcn)
 %
 % Inputs:
 %   data_matrix1 - Time series data [subjects x timepoints] for condition 1
@@ -16,6 +17,8 @@ function [TFCE_Obs, TFCE_Perm, P_Values, Info, Results] = test_rof_within_two_co
 %   nPerm        - Number of permutations (default: 5000)
 %   H            - TFCE height parameter (default: 2)
 %   E            - TFCE extent parameter (default: 0.5)
+%   progressFcn  - (Optional) Function handle called as progressFcn(fraction, message)
+%                  When provided, suppresses built-in waitbar and fprintf output.
 %
 % Outputs:
 %   TFCE_Obs     - Observed TFCE values [1 x timepoints]
@@ -49,6 +52,14 @@ if nargin < 5 || isempty(E)
     E = 0.5;
 end
 
+% Determine output mode
+useExternalProgress = nargin >= 6 && ~isempty(progressFcn) && isa(progressFcn, 'function_handle');
+if useExternalProgress
+    logfcn = @(varargin) [];  % suppress fprintf
+else
+    logfcn = @(varargin) fprintf(varargin{:});
+end
+
 %% Validate inputs
 if size(data_matrix1,1) ~= size(data_matrix2,1) || ...
    size(data_matrix1,2) ~= size(data_matrix2,2)
@@ -59,7 +70,7 @@ end
 [nA, nTimepoints] = size(data_matrix1);
 
 %% Calculate paired differences
-fprintf('Calculating paired differences...\n');
+logfcn('Calculating paired differences...\n');
 DataDiff = data_matrix1 - data_matrix2;
 
 %% Calculate observed paired t-values
@@ -77,7 +88,7 @@ threshold_step = 0.1;
 thresholds = start_threshold : threshold_step : max_t;
 
 %% TFCE integration on observed data
-fprintf('Computing TFCE on observed data...\n');
+logfcn('Computing TFCE on observed data...\n');
 TFCE_Obs = zeros(size(T_Obs));
 
 for thresh = thresholds
@@ -99,20 +110,24 @@ for thresh = thresholds
 end
 
 %% Permutation testing
-fprintf('Starting permutation testing...\n');
+logfcn('Starting permutation testing...\n');
 maxTFCE = zeros(nPerm, 1);
 
-% Create progress bar
-hWaitbar = waitbar(0, 'Calculating Permutations...', ...
-    'Name', 'TFCE Permutations', ...
-    'CreateCancelBtn', 'setappdata(gcbf, ''canceling'', true)');
-setappdata(hWaitbar, 'canceling', false);
+% Create progress bar (only when no external progress callback)
+if ~useExternalProgress
+    hWaitbar = waitbar(0, 'Calculating Permutations...', ...
+        'Name', 'TFCE Permutations', ...
+        'CreateCancelBtn', 'setappdata(gcbf, ''canceling'', true)');
+    setappdata(hWaitbar, 'canceling', false);
+end
 
 for i = 1:nPerm
     % Check for cancellation
-    if getappdata(hWaitbar, 'canceling')
-        delete(hWaitbar);
-        error('Permutation test canceled by user.');
+    if ~useExternalProgress
+        if getappdata(hWaitbar, 'canceling')
+            delete(hWaitbar);
+            error('Permutation test canceled by user.');
+        end
     end
     
     % Randomly swap conditions (equivalent to sign flipping differences)
@@ -149,14 +164,20 @@ for i = 1:nPerm
     maxTFCE(i) = max(abs(temp_TFCE));
     
     % Update progress
-    waitbar(i / nPerm, hWaitbar, sprintf('Permutations: %d/%d', i, nPerm));
+    if useExternalProgress
+        progressFcn(i / nPerm, sprintf('Permutations: %d/%d', i, nPerm));
+    else
+        waitbar(i / nPerm, hWaitbar, sprintf('Permutations: %d/%d', i, nPerm));
+    end
 end
 
-delete(hWaitbar);
-fprintf('Permutation testing complete.\n');
+if ~useExternalProgress
+    delete(hWaitbar);
+end
+logfcn('Permutation testing complete.\n');
 
 %% Calculate p-values
-fprintf('Calculating p-values and effect sizes...\n');
+logfcn('Calculating p-values and effect sizes...\n');
 
 if exist('histc', 'file') || exist('histc', 'builtin')
     % Use histogram method for p-values
@@ -165,7 +186,7 @@ if exist('histc', 'file') || exist('histc', 'builtin')
     P_Values = 1 - bin ./ (nPerm + 2);
 else
     % Fallback: direct permutation p-value computation (histc removed)
-    fprintf('Note: histc not available. Using direct p-value computation.\n');
+    logfcn('Note: histc not available. Using direct p-value computation.\n');
     P_Values = zeros(size(TFCE_Obs));
     for t_idx = 1:length(TFCE_Obs)
         P_Values(t_idx) = (sum(maxTFCE >= abs(TFCE_Obs(t_idx))) + 1) / (nPerm + 1);
@@ -233,6 +254,6 @@ Results.P_Values = P_Values;
 Results.Cohens_d = cohens_d;
 Results.Avg_Cohens_d = avg_cohens_d;
 
-fprintf('Analysis complete.\n');
+logfcn('Analysis complete.\n');
 
 end
