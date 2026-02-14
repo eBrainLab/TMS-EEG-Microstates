@@ -65,7 +65,13 @@ end
 
 %% Apply CLR transformation
 % Calculate geometric mean of replaced vector
-geo_mean = geomean(x_replaced);
+if exist('geomean', 'file')
+    geo_mean = geomean(x_replaced);
+else
+    % Fallback: compute geometric mean without Statistics Toolbox
+    fprintf('Note: Statistics Toolbox not found. Using built-in geometric mean.\n');
+    geo_mean = exp(mean(log(x_replaced)));
+end
 
 % Perform CLR transformation
 y = log(x_replaced / geo_mean);

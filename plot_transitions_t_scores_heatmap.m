@@ -46,21 +46,54 @@ plot_ax = categorical(microstates);
 %% Create figure
 figure;
 set(gcf, 'Position', [100, 200, 1600, 1000]);
-title(figure_title, 'FontName', 'Times New Roman');
 
 % Create heatmap
-h1 = heatmap(plot_ax, plot_ax, rtf_results.t_post_tms);
-h1.Title = sprintf("Post-TMS: %d ms to %d ms vs. Baseline", ...
-    time_interval(1), time_interval(end));
-h1.FontName = 'Times New Roman';
+if exist('heatmap', 'file')
+    h1 = heatmap(plot_ax, plot_ax, rtf_results.t_post_tms);
+    h1.Title = sprintf("Post-TMS: %d ms to %d ms vs. Baseline", ...
+        time_interval(1), time_interval(end));
+    h1.FontName = 'Times New Roman';
+    colormap jet;
+else
+    % Fallback for MATLAB versions prior to R2017a
+    fprintf('Note: heatmap function not available (requires R2017a+). Using imagesc.\n');
+    imagesc(rtf_results.t_post_tms);
+    set(gca, 'XTick', 1:length(microstates), 'XTickLabel', cellstr(microstates));
+    set(gca, 'YTick', 1:length(microstates), 'YTickLabel', cellstr(microstates));
+    xlabel('To State', 'FontName', 'Times New Roman');
+    ylabel('From State', 'FontName', 'Times New Roman');
+    title(sprintf("Post-TMS: %d ms to %d ms vs. Baseline", ...
+        time_interval(1), time_interval(end)), 'FontName', 'Times New Roman');
+    colorbar;
+    colormap jet;
+    axis equal tight;
+    % Add text annotations for cell values
+    data_mat = rtf_results.t_post_tms;
+    for r = 1:size(data_mat, 1)
+        for c = 1:size(data_mat, 2)
+            if ~isnan(data_mat(r, c))
+                text(c, r, sprintf('%.2f', data_mat(r, c)), ...
+                    'HorizontalAlignment', 'center', 'FontName', 'Times New Roman');
+            end
+        end
+    end
+end
 
-% Apply jet colormap
-colormap jet;
+% Main figure title (sgtitle requires R2018b+)
+if exist('sgtitle', 'file')
+    sgtitle(figure_title, 'FontName', 'Times New Roman');
+end
 
 %% Save figure
 if save_figure
     safe_figure_title = matlab.lang.makeValidName(figure_title);
-    exportgraphics(gcf, [safe_figure_title, '.png'], 'Resolution', 500);
+    if exist('exportgraphics', 'file')
+        exportgraphics(gcf, [safe_figure_title, '.png'], 'Resolution', 500);
+    else
+        % Fallback for MATLAB versions prior to R2020a
+        fprintf('Note: exportgraphics not available (requires R2020a+). Using print instead.\n');
+        print(gcf, safe_figure_title, '-dpng', '-r500');
+    end
     close all;
 end
 

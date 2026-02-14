@@ -191,7 +191,23 @@ end
 % Calculate 95% confidence intervals
 alpha = 0.05;
 degrees_of_freedom = num_valid_subjects - 1;
-t_critical = tinv(1 - alpha/2, degrees_of_freedom);
+if exist('tinv', 'file')
+    t_critical = tinv(1 - alpha/2, degrees_of_freedom);
+else
+    % Fallback: compute t-critical value without Statistics Toolbox
+    fprintf('Note: Statistics Toolbox not found. Using built-in t-critical value computation.\n');
+    if exist('betaincinv', 'file')
+        % Exact computation via inverse incomplete beta function (R2017a+)
+        x = betaincinv(alpha, degrees_of_freedom/2, 0.5);
+        t_critical = sqrt(degrees_of_freedom * (1 - x) / x);
+    else
+        % Cornish-Fisher approximation via erfinv (all MATLAB versions)
+        z = sqrt(2) * erfinv(1 - alpha);
+        g1 = (z^3 + z) / 4;
+        g2 = (5*z^5 + 16*z^3 + 3*z) / 96;
+        t_critical = z + g1/degrees_of_freedom + g2/degrees_of_freedom^2;
+    end
+end
 
 confidence_intervals = struct();
 for i = 1:num_states
@@ -202,10 +218,23 @@ end
 %% Smooth data
 smoothed_averages = struct();
 smoothed_conf_intervals = struct();
+use_smooth = exist('smooth', 'file');
+if ~use_smooth
+    fprintf('Note: Curve Fitting Toolbox not found. Using moving average smoothing instead of LOESS.\n');
+end
 for i = 1:num_states
     current_state = microstates{i};
-    smoothed_averages.(current_state) = smooth(averages.(current_state), 0.02, 'loess');
-    smoothed_conf_intervals.(current_state) = smooth(confidence_intervals.(current_state), 0.02, 'loess');
+    if use_smooth
+        smoothed_averages.(current_state) = smooth(averages.(current_state), 0.02, 'loess');
+        smoothed_conf_intervals.(current_state) = smooth(confidence_intervals.(current_state), 0.02, 'loess');
+    else
+        % Fallback: moving average via conv (works in all MATLAB versions)
+        window_size = max(3, round(0.02 * numel(averages.(current_state))));
+        if mod(window_size, 2) == 0, window_size = window_size + 1; end
+        kernel = ones(window_size, 1) / window_size;
+        smoothed_averages.(current_state) = conv(averages.(current_state), kernel, 'same');
+        smoothed_conf_intervals.(current_state) = conv(confidence_intervals.(current_state), kernel, 'same');
+    end
 end
 
 % Exclude artifact period
@@ -385,11 +414,24 @@ xGridLines = setdiff(xGridLines, 600);
 yGridLines = setdiff(yGridLines, 3);
 grid off;
 
-for k = 1:length(xGridLines)
-    xline(xGridLines(k), '-', 'Color', [0.8, 0.8, 0.8]);
-end
-for k = 1:length(yGridLines)
-    yline(yGridLines(k), '-', 'Color', [0.8, 0.8, 0.8]);
+if exist('xline', 'file')
+    for k = 1:length(xGridLines)
+        xline(xGridLines(k), '-', 'Color', [0.8, 0.8, 0.8]);
+    end
+    for k = 1:length(yGridLines)
+        yline(yGridLines(k), '-', 'Color', [0.8, 0.8, 0.8]);
+    end
+else
+    % Fallback for MATLAB versions prior to R2018b
+    yl_grid = ylim; xl_grid = xlim;
+    for k = 1:length(xGridLines)
+        line([xGridLines(k) xGridLines(k)], yl_grid, 'Color', [0.8, 0.8, 0.8], ...
+            'LineStyle', '-', 'HandleVisibility', 'off');
+    end
+    for k = 1:length(yGridLines)
+        line(xl_grid, [yGridLines(k) yGridLines(k)], 'Color', [0.8, 0.8, 0.8], ...
+            'LineStyle', '-', 'HandleVisibility', 'off');
+    end
 end
 
 % Labels and title
@@ -398,12 +440,29 @@ ylabel('Relative Occurrence Frequency', 'FontSize', 24, 'FontName', 'Helvetica')
 title(figure_title, 'FontSize', 30, 'FontName', 'Helvetica');
 
 % Reference lines
-yline(0, '--k');
-xline(0, '--r', 'TMS', 'LineWidth', 5, ...
-    'LabelHorizontalAlignment', 'center', ...
-    'LabelVerticalAlignment', 'top', ...
-    'LabelOrientation','horizontal', ...
-    'FontSize', 28, 'FontName', 'Helvetica');
+if exist('xline', 'file')
+    yline(0, '--k');
+    try
+        % LabelOrientation requires R2020b+
+        xline(0, '--r', 'TMS', 'LineWidth', 5, ...
+            'LabelHorizontalAlignment', 'center', ...
+            'LabelVerticalAlignment', 'top', ...
+            'LabelOrientation','horizontal', ...
+            'FontSize', 28, 'FontName', 'Helvetica');
+    catch
+        xline(0, '--r', 'TMS', 'LineWidth', 5, ...
+            'LabelHorizontalAlignment', 'center', ...
+            'LabelVerticalAlignment', 'top', ...
+            'FontSize', 28, 'FontName', 'Helvetica');
+    end
+else
+    % Fallback for MATLAB versions prior to R2018b
+    yl_ref = ylim; xl_ref = xlim;
+    line(xl_ref, [0 0], 'Color', 'k', 'LineStyle', '--', 'HandleVisibility', 'off');
+    line([0 0], yl_ref, 'Color', 'r', 'LineStyle', '--', 'LineWidth', 5, 'HandleVisibility', 'off');
+    text(0, yl_ref(2), 'TMS', 'FontSize', 28, 'FontName', 'Helvetica', ...
+        'HorizontalAlignment', 'center', 'VerticalAlignment', 'top', 'Color', 'r');
+end
 
 % Legend
 lgd_microstate = legend(microstates, 'FontSize', 28, 'FontName', 'Helvetica');
@@ -415,7 +474,13 @@ hold off;
 %% Save figure
 if save_figure
     safe_figure_title = matlab.lang.makeValidName(figure_title);
-    exportgraphics(gcf, [safe_figure_title, '.pdf'], 'ContentType', 'vector');
+    if exist('exportgraphics', 'file')
+        exportgraphics(gcf, [safe_figure_title, '.pdf'], 'ContentType', 'vector');
+    else
+        % Fallback for MATLAB versions prior to R2020a
+        fprintf('Note: exportgraphics not available (requires R2020a+). Using print instead.\n');
+        print(gcf, safe_figure_title, '-dpdf', '-bestfit');
+    end
     close all;
 end
 

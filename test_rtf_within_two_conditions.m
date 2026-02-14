@@ -57,8 +57,22 @@ end
 fprintf('Performing paired t-tests...\n');
 
 % One-sample t-test on differences (testing if mean difference = 0)
-[~, p_post_tms, ~, stats_post_tms] = ttest(difference_post_tms, 0, 'Dim', 3, 'Tail', 'both');
-t_post_tms = stats_post_tms.tstat;
+if exist('ttest', 'file')
+    [~, p_post_tms, ~, stats_post_tms] = ttest(difference_post_tms, 0, 'Dim', 3, 'Tail', 'both');
+    t_post_tms = stats_post_tms.tstat;
+else
+    % Fallback: manual paired t-test without Statistics Toolbox
+    fprintf('Note: Statistics Toolbox not found. Using built-in t-test implementation.\n');
+    n_subj = size(difference_post_tms, 3);
+    m = mean(difference_post_tms, 3);
+    s = std(difference_post_tms, 0, 3);
+    se = s ./ sqrt(n_subj);
+    t_post_tms = m ./ se;
+    df = n_subj - 1;
+    % Two-tailed p-value via regularized incomplete beta function (base MATLAB)
+    p_post_tms = betainc(df ./ (df + t_post_tms.^2), df/2, 0.5);
+    p_post_tms(isnan(t_post_tms)) = NaN;
+end
 
 % Set diagonal (self-transitions) to NaN
 for ii = 1:num_states
@@ -74,7 +88,24 @@ if nargin >= 3 && ~isempty(apply_correction)
     
     if strcmpi(apply_correction, "fdr")
         % False Discovery Rate correction
-        p_post_tms_corrected = mafdr(p_post_tms_flat, 'BHFDR', true);
+        if exist('mafdr', 'file')
+            p_post_tms_corrected = mafdr(p_post_tms_flat, 'BHFDR', true);
+        else
+            % Fallback: Benjamini-Hochberg FDR without Bioinformatics Toolbox
+            fprintf('Note: Bioinformatics Toolbox not found. Using built-in BH-FDR correction.\n');
+            m_tests = length(p_post_tms_flat);
+            [p_sorted, sort_idx] = sort(p_post_tms_flat(:));
+            adjusted = p_sorted .* m_tests ./ (1:m_tests)';
+            % Enforce monotonicity (step-up procedure)
+            for adj_i = m_tests-1:-1:1
+                adjusted(adj_i) = min(adjusted(adj_i), adjusted(adj_i+1));
+            end
+            p_post_tms_corrected = min(adjusted, 1);
+            % Restore original order
+            p_temp = zeros(size(p_post_tms_flat));
+            p_temp(sort_idx) = p_post_tms_corrected;
+            p_post_tms_corrected = p_temp;
+        end
         
     elseif strcmpi(apply_correction, "bonferroni")
         % Bonferroni correction

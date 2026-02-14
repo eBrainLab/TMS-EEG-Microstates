@@ -111,8 +111,13 @@ for i = 1:nPerm
     end
     
     % Random sign flipping
-    Signs = [-1, 1];
-    SignSwitch = randsample(Signs, nA, 'true')';
+    if exist('randsample', 'file')
+        Signs = [-1, 1];
+        SignSwitch = randsample(Signs, nA, true)';
+    else
+        % Fallback: generate random signs without Statistics Toolbox
+        SignSwitch = 2*(randi([0,1], nA, 1)) - 1;
+    end
     SignSwitch = repmat(SignSwitch, [1, nTimepoints]);
     
     % Apply sign flip
@@ -154,10 +159,19 @@ fprintf('Permutation testing complete.\n');
 %% Calculate p-values
 fprintf('Calculating p-values and effect sizes...\n');
 
-% Use histogram method for p-values
-edges = [maxTFCE; max(abs(TFCE_Obs(:)))];
-[~, bin] = histc(abs(TFCE_Obs), sort(edges));
-P_Values = 1 - bin ./ (nPerm + 2);
+if exist('histc', 'file') || exist('histc', 'builtin')
+    % Use histogram method for p-values
+    edges = [maxTFCE; max(abs(TFCE_Obs(:)))];
+    [~, bin] = histc(abs(TFCE_Obs), sort(edges));
+    P_Values = 1 - bin ./ (nPerm + 2);
+else
+    % Fallback: direct permutation p-value computation (histc removed)
+    fprintf('Note: histc not available. Using direct p-value computation.\n');
+    P_Values = zeros(size(TFCE_Obs));
+    for t_idx = 1:length(TFCE_Obs)
+        P_Values(t_idx) = (sum(maxTFCE >= abs(TFCE_Obs(t_idx))) + 1) / (nPerm + 1);
+    end
+end
 
 %% Identify significant clusters and compute effect sizes
 % Find significant time points
