@@ -111,4 +111,4 @@ data_struct(subject)
 
 If you use this code in your research, please cite:
 
-> Kabir, A., Dhami, P., Chatterjee, R., Blumberger, D.M., Daskalakis, Z.J., Moreno, S. and Farzan, F. *Insight into the Impact of Focal Stimulation on Large-Scale Network Dynamics*. [Journal of Neural Engineering], [2026]. DOI: [10.1088/1741-2552/ae4a4f]
+> Kabir, A., Dhami, P., Chatterjee, R., Blumberger, D.M., Daskalakis, Z.J., Moreno, S. and Farzan, F. *Insight into the Impact of Focal Stimulation on Large-Scale Network Dynamics*. [Journal of Neural Engineering], [2026]. DOI: [https://doi.org/10.1088/1741-2552/ae4a4f]
