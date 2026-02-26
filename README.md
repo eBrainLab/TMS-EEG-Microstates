@@ -1,7 +1,7 @@
 # TMS-EEG Microstates
 
 **This repository provides the supporting code and analysis pipeline for the results presented in the paper: *"Insight into the Impact of Focal Stimulation on Large-Scale Network Dynamics"*.**
-
+DOI: [https://doi.org/10.1088/1741-2552/ae4a4f]
 ---
 
 ## Overview
